@@ -69,6 +69,12 @@
     margin:0; color:var(--green-dark);
   }
   .brand h1 span{ color: var(--rust); }
+  .environment-badge{
+    display:none; padding:3px 7px; border-radius:999px;
+    background:#F59E0B; color:#1B2A4A; font-size:10px; font-weight:800;
+    letter-spacing:0.08em; line-height:1.2;
+  }
+  .environment-badge.show{ display:inline-flex; }
   .brand-right{ display:flex; align-items:center; gap:8px; }
   .count-pill{
     font-size:12px; font-weight:600; color:var(--ink-soft); white-space:nowrap;
@@ -282,6 +288,7 @@
         <circle cx="28" cy="28" r="5.5" fill="var(--rust)"/>
       </svg>
       <h1>Aisles<span>.</span></h1>
+      <span class="environment-badge" id="environmentBadge">UAT</span>
     </div>
     <div class="brand-right">
       <div class="count-pill" id="countPill">0 items</div>
@@ -442,7 +449,7 @@
   // ---------------------------------------------------------------------
   // 1. FIREBASE CONFIG
   // ---------------------------------------------------------------------
-  const firebaseConfig = {
+  const productionFirebaseConfig = {
     apiKey: "AIzaSyArDBKW5qdUVs-NsYbtplVqkTW49HOvw5w",
     authDomain: "aisles-f3a4c.firebaseapp.com",
     projectId: "aisles-f3a4c",
@@ -450,6 +457,31 @@
     messagingSenderId: "814799394672",
     appId: "1:814799394672:web:772878c89587f2fd0be1b5"
   };
+
+  const uatFirebaseConfig = {
+    apiKey: "AIzaSyB9s4Rmsicaw6HkOjvzW6X6EosXORPXQEU",
+    authDomain: "uat-aisles.firebaseapp.com",
+    projectId: "uat-aisles",
+    storageBucket: "uat-aisles.firebasestorage.app",
+    messagingSenderId: "384777489395",
+    appId: "1:384777489395:web:daf88a6c028a99fcf3a086"
+  };
+
+  // UAT Hosting, a future uat.* custom domain, and local development all use
+  // the isolated UAT database. Every other hostname continues to use production.
+  const hostname = window.location.hostname.toLowerCase();
+  const isUatEnvironment =
+    hostname === 'uat-aisles.web.app' ||
+    hostname === 'uat-aisles.firebaseapp.com' ||
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.startsWith('uat.');
+  const firebaseConfig = isUatEnvironment ? uatFirebaseConfig : productionFirebaseConfig;
+
+  if (isUatEnvironment) {
+    document.getElementById('environmentBadge').classList.add('show');
+    document.title = 'UAT — Aisles Shared Grocery List';
+  }
 
   // ---------------------------------------------------------------------
   // 2. DEFAULT CATEGORIES — every new list starts with this exact set.

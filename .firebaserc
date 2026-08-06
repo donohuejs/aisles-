@@ -1,0 +1,9 @@
+{
+  "projects": {
+    "default": "uat-aisles",
+    "uat": "uat-aisles",
+    "production": "aisles-f3a4c"
+  },
+  "targets": {},
+  "etags": {}
+}
