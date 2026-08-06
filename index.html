@@ -362,7 +362,7 @@
       <div class="add-cat-row">
         <input type="text" id="newCatIcon" maxlength="4" placeholder="🛒" style="width:44px; flex:0 0 44px; text-align:center; padding:8px 4px; border-radius:9px; border:1.5px solid var(--paper-line); background:var(--paper); color:var(--ink);" />
         <input type="text" id="newCatLabel" placeholder="New category name" style="flex:1; width:auto; padding:8px 10px; border-radius:9px; border:1.5px solid var(--paper-line); background:var(--paper); color:var(--ink); font-family:'Space Grotesk',sans-serif; font-size:13px;" />
-        <button id="addCatBtn">Add</button>
+        <button type="button" id="addCatBtn">Add</button>
       </div>
     </div>
 
@@ -757,17 +757,22 @@
     if (isConfigured) subscribeToList(listId, false);
   }
 
-  function saveListDoc(patch, successMsg) {
+  async function saveListDoc(patch, successMsg) {
     if (!listDocRef) {
       showToast("Not ready yet — try again in a second");
-      return;
+      return false;
     }
-    updateDoc(listDocRef, patch).then(() => {
+    try {
+      // Shared lists can be opened before their parent document exists.
+      // Merge settings so saves work for both new and existing lists.
+      await setDoc(listDocRef, patch, { merge: true });
       if (successMsg) showToast(successMsg);
-    }).catch(err => {
+      return true;
+    } catch (err) {
       console.error('List settings save failed:', err);
       showToast('Couldn\'t save that change — check Firestore rules');
-    });
+      return false;
+    }
   }
 
   if (isConfigured) {
@@ -843,7 +848,7 @@
       saveListDoc({ groupMode: !groupModeEnabled });
     });
 
-    document.getElementById('addCatBtn').addEventListener('click', () => {
+    document.getElementById('addCatBtn').addEventListener('click', async () => {
       const iconEl = document.getElementById('newCatIcon');
       const labelEl = document.getElementById('newCatLabel');
       const label = labelEl.value.trim();
@@ -853,8 +858,11 @@
       let finalKey = key, n = 2;
       while (currentCategories.some(c => c.key === finalKey)) { finalKey = `${key}-${n}`; n++; }
       const updated = [...currentCategories, { key: finalKey, label, icon }];
-      saveListDoc({ categories: updated }, `Added "${label}"`);
-      iconEl.value = ''; labelEl.value = '';
+      const saved = await saveListDoc({ categories: updated }, `Added "${label}"`);
+      if (saved) {
+        iconEl.value = '';
+        labelEl.value = '';
+      }
     });
     document.getElementById('removeTabBtn').addEventListener('click', () => {
       const pinned = pinnedLists.find(l => l.id === activeListId);
