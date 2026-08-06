@@ -536,16 +536,34 @@
   function savePinnedLists(lists) {
     safeSet('aisle_lists', JSON.stringify(lists));
   }
-  let pinnedLists = loadPinnedLists();
+  function loadRemovedListIds() {
+    try {
+      const parsed = JSON.parse(safeGet('aisle_removed_lists') || '[]');
+      return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch { return new Set(); }
+  }
+  function saveRemovedListIds(ids) {
+    safeSet('aisle_removed_lists', JSON.stringify([...ids]));
+  }
+
+  let removedListIds = loadRemovedListIds();
+  let pinnedLists = loadPinnedLists().filter(l => !removedListIds.has(l.id));
+  savePinnedLists(pinnedLists);
   let activeListId = safeGet('aisle_active_list') || null;
 
   const urlParams = new URLSearchParams(location.search);
   const urlListId = urlParams.get('list');
-  if (urlListId && !pinnedLists.some(l => l.id === urlListId)) {
+  const explicitJoin = urlParams.get('join') === '1';
+  if (urlListId && explicitJoin) {
+    removedListIds.delete(urlListId);
+    saveRemovedListIds(removedListIds);
+  }
+  const canOpenUrlList = urlListId && !removedListIds.has(urlListId);
+  if (canOpenUrlList && !pinnedLists.some(l => l.id === urlListId)) {
     pinnedLists.push({ id: urlListId, name: 'Shared List' });
     savePinnedLists(pinnedLists);
   }
-  if (urlListId) activeListId = urlListId;
+  if (canOpenUrlList) activeListId = urlListId;
 
   let isNewlyCreatedList = false;
   if (!activeListId || !pinnedLists.some(l => l.id === activeListId)) {
@@ -565,6 +583,7 @@
   function updateUrl() {
     const url = new URL(location.href);
     url.searchParams.set('list', activeListId);
+    url.searchParams.delete('join');
     history.replaceState({}, '', url);
   }
 
@@ -659,7 +678,10 @@
   function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
   document.getElementById('shareBtn').addEventListener('click', async () => {
-    const url = location.href;
+    const shareUrl = new URL(location.href);
+    shareUrl.searchParams.set('list', activeListId);
+    shareUrl.searchParams.set('join', '1');
+    const url = shareUrl.toString();
     try {
       await navigator.clipboard.writeText(url);
       showToast('Link copied — send it to whoever you\'re sharing with');
@@ -771,6 +793,8 @@
 
   function removeDeletedListLocally(listId) {
     const wasPinned = pinnedLists.some(l => l.id === listId);
+    removedListIds.add(listId);
+    saveRemovedListIds(removedListIds);
     pinnedLists = pinnedLists.filter(l => l.id !== listId);
     savePinnedLists(pinnedLists);
 
@@ -915,6 +939,8 @@
 
       // Local-only — no Firestore writes at all. The list and everyone
       // else's access to it are completely untouched.
+      removedListIds.add(removingId);
+      saveRemovedListIds(removedListIds);
       pinnedLists = pinnedLists.filter(l => l.id !== removingId);
       savePinnedLists(pinnedLists);
 
