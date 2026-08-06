@@ -126,6 +126,13 @@
   }
   .add-form button:active{ background:var(--green); }
 
+  .import-launch{
+    width:100%; margin:0 0 12px; padding:9px 12px; border:1.5px dashed var(--green);
+    border-radius:10px; background:var(--card); color:var(--green-dark); cursor:pointer;
+    font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700;
+  }
+  .import-launch:active{ background:var(--check); }
+
   .guess-row{ display:none; align-items:center; gap:8px; margin:10px 0 22px; padding:0 2px; }
   .guess-chip{
     font-family:'Space Grotesk', sans-serif; font-size:13px; font-weight:600;
@@ -272,6 +279,26 @@
     background:var(--paper); font-size:13px; font-weight:600; cursor:pointer; color:var(--ink);
   }
 
+  .recipe-modal{ max-width:540px; }
+  .recipe-tabs{ display:flex; gap:6px; margin:14px 0 10px; }
+  .recipe-tab{ flex:1; padding:8px; border:1.5px solid var(--paper-line); border-radius:9px; background:var(--paper); color:var(--ink-soft); font:600 13px 'Space Grotesk',sans-serif; cursor:pointer; }
+  .recipe-tab.active{ background:var(--green-dark); border-color:var(--green-dark); color:#fff; }
+  .recipe-panel{ display:none; }
+  .recipe-panel.active{ display:block; }
+  .recipe-modal textarea{ width:100%; min-height:190px; resize:vertical; padding:11px 12px; border-radius:9px; border:1.5px solid var(--paper-line); background:var(--paper); color:var(--ink); font:14px/1.45 'Space Grotesk',sans-serif; }
+  .recipe-help{ margin-top:7px !important; font-size:12px !important; }
+  .recipe-error{ display:none; margin:10px 0 0; color:var(--rust-dark); font-size:13px; font-weight:600; }
+  .recipe-error.show{ display:block; }
+  .recipe-review-head{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
+  .recipe-review-head strong{ font-family:'Fraunces',serif; font-size:17px; }
+  .recipe-review-actions button{ border:0; background:none; color:var(--green-dark); font-weight:700; cursor:pointer; }
+  .recipe-items{ display:flex; flex-direction:column; gap:8px; }
+  .recipe-item{ display:grid; grid-template-columns:24px minmax(0,1fr) 145px; gap:8px; align-items:center; }
+  .recipe-item input[type="checkbox"]{ width:18px; height:18px; accent-color:var(--green); }
+  .recipe-item input[type="text"], .recipe-item select{ min-width:0; width:100%; padding:8px 9px; border-radius:8px; border:1.5px solid var(--paper-line); background:var(--paper); color:var(--ink); font:13px 'Space Grotesk',sans-serif; }
+  .recipe-existing{ grid-column:2 / 4; margin-top:-6px; color:var(--rust-dark); font-size:11px; font-weight:700; }
+  @media(max-width:520px){ .recipe-item{ grid-template-columns:24px minmax(0,1fr); } .recipe-item select{ grid-column:2; } .recipe-existing{ grid-column:2; } }
+
   @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
 </style>
 </head>
@@ -318,6 +345,7 @@
     <input type="text" id="itemInput" placeholder="Add an item…" autocomplete="off" />
     <button type="submit" aria-label="Add item">+</button>
   </form>
+  <button type="button" class="import-launch" id="importRecipeBtn">Import a recipe</button>
   <div class="guess-row" id="guessRow">
     <button type="button" class="guess-chip" id="guessChip"></button>
     <select id="categorySelect"></select>
@@ -437,6 +465,45 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="recipeOverlay">
+  <div class="modal-card recipe-modal">
+    <div id="recipeInputStep">
+      <h3>Import a recipe</h3>
+      <p>Paste a recipe link or its ingredient list. No AI service is used.</p>
+      <div class="recipe-tabs">
+        <button type="button" class="recipe-tab active" data-recipe-tab="text">Paste recipe</button>
+        <button type="button" class="recipe-tab" data-recipe-tab="url">Recipe link</button>
+      </div>
+      <div class="recipe-panel active" data-recipe-panel="text">
+        <textarea id="recipeText" placeholder="Ingredients&#10;2 cups flour&#10;1 tsp salt&#10;...&#10;&#10;Directions&#10;..."></textarea>
+        <p class="recipe-help">For best results, include an Ingredients heading or paste only the ingredient lines.</p>
+      </div>
+      <div class="recipe-panel" data-recipe-panel="url">
+        <input type="text" id="recipeUrl" placeholder="https://example.com/recipe" />
+        <p class="recipe-help">Some sites block direct imports. If that happens, copy and paste their ingredient list instead.</p>
+      </div>
+      <div class="recipe-error" id="recipeError" role="alert"></div>
+      <div class="modal-actions">
+        <button type="button" class="modal-cancel" id="recipeCancelBtn">Cancel</button>
+        <button type="button" class="modal-confirm" id="recipeParseBtn">Review ingredients</button>
+      </div>
+    </div>
+    <div id="recipeReviewStep" style="display:none;">
+      <div class="recipe-review-head">
+        <strong id="recipeReviewTitle">Review ingredients</strong>
+        <div class="recipe-review-actions"><button type="button" id="recipeSelectAllBtn">Select all</button></div>
+      </div>
+      <p>Edit anything that was interpreted incorrectly, then choose what to add.</p>
+      <div class="recipe-items" id="recipeItems"></div>
+      <div class="recipe-error" id="recipeReviewError" role="alert"></div>
+      <div class="modal-actions">
+        <button type="button" class="modal-cancel" id="recipeBackBtn">Back</button>
+        <button type="button" class="modal-confirm" id="recipeAddBtn">Add selected</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script type="module">
@@ -482,7 +549,6 @@
     document.getElementById('environmentBadge').classList.add('show');
     document.title = 'UAT — Aisles Shared Grocery List';
   }
-
   // ---------------------------------------------------------------------
   // 2. DEFAULT CATEGORIES — every new list starts with this exact set.
   // ---------------------------------------------------------------------
@@ -533,6 +599,7 @@
     const lower = normalizeName(name);
     if (!lower) return null;
     if (learnedMap[lower] && categoryExists(learnedMap[lower])) return learnedMap[lower];
+    if (lower.includes('chocolate chips') && categoryExists('spices')) return 'spices';
     for (const [key, words] of Object.entries(CATEGORY_KEYWORDS)) {
       if (!categoryExists(key)) continue;
       for (const w of words) {
@@ -708,6 +775,225 @@
 
   function openModal(id) { document.getElementById(id).classList.add('show'); }
   function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+  // ---------------------------------------------------------------------
+  // RECIPE IMPORTER — deterministic parsing, with no paid AI dependency.
+  // ---------------------------------------------------------------------
+  const recipeOverlay = document.getElementById('recipeOverlay');
+  const recipeInputStep = document.getElementById('recipeInputStep');
+  const recipeReviewStep = document.getElementById('recipeReviewStep');
+  const recipeError = document.getElementById('recipeError');
+  const recipeReviewError = document.getElementById('recipeReviewError');
+  const recipeItems = document.getElementById('recipeItems');
+  let activeRecipeTab = 'text';
+  let importedRecipeTitle = '';
+  let importedRecipeUrl = '';
+
+  function setRecipeError(element, message = '') {
+    element.textContent = message;
+    element.classList.toggle('show', !!message);
+  }
+
+  function resetRecipeImporter() {
+    activeRecipeTab = 'text';
+    importedRecipeTitle = '';
+    importedRecipeUrl = '';
+    recipeInputStep.style.display = '';
+    recipeReviewStep.style.display = 'none';
+    recipeItems.innerHTML = '';
+    setRecipeError(recipeError);
+    setRecipeError(recipeReviewError);
+    document.querySelectorAll('.recipe-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.recipeTab === 'text'));
+    document.querySelectorAll('.recipe-panel').forEach(panel => panel.classList.toggle('active', panel.dataset.recipePanel === 'text'));
+  }
+
+  function cleanIngredientLine(line) {
+    return String(line || '')
+      .replace(/^\s*(?:[-*•▪◦‣⁃]|\d+[.)](?=\s))\s*/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function parseRecipeText(text) {
+    const rawLines = String(text || '').replace(/\r/g, '').split('\n');
+    const ingredientHeading = /^\s*(?:ingredients?|what you(?:'|’)ll need)\s*:?[\s]*$/i;
+    const stopHeading = /^\s*(?:instructions?|directions?|method|preparation|steps?|notes?|nutrition|equipment)\s*:?[\s]*$/i;
+    const ignoredLine = /^\s*(?:serves?|yield|prep(?:aration)? time|cook time|total time)\s*:?/i;
+    const hasIngredientHeading = rawLines.some(line => ingredientHeading.test(line));
+    let insideIngredients = !hasIngredientHeading;
+    const ingredients = [];
+
+    for (const rawLine of rawLines) {
+      if (ingredientHeading.test(rawLine)) { insideIngredients = true; continue; }
+      if (insideIngredients && stopHeading.test(rawLine)) break;
+      if (!insideIngredients) continue;
+      const line = cleanIngredientLine(rawLine);
+      if (!line || ignoredLine.test(line)) continue;
+      if (/^(?:step\s+\d+|preheat|heat|stir|mix|bake|cook|place|combine|whisk|add|pour|serve)\b/i.test(line) && /[.!]$/.test(line)) continue;
+      if (line.length > 220) continue;
+      ingredients.push(line);
+      if (ingredients.length >= 100) break;
+    }
+    return ingredients;
+  }
+
+  function findRecipeJsonLd(value) {
+    if (Array.isArray(value)) {
+      for (const entry of value) { const found = findRecipeJsonLd(entry); if (found) return found; }
+      return null;
+    }
+    if (!value || typeof value !== 'object') return null;
+    const types = Array.isArray(value['@type']) ? value['@type'] : [value['@type']];
+    if (types.some(type => String(type).toLowerCase() === 'recipe') && Array.isArray(value.recipeIngredient)) return value;
+    for (const child of Object.values(value)) { const found = findRecipeJsonLd(child); if (found) return found; }
+    return null;
+  }
+
+  async function importRecipeUrl(urlText) {
+    let url;
+    try { url = new URL(urlText); } catch { throw new Error('Enter a complete recipe link beginning with http:// or https://.'); }
+    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only http:// and https:// recipe links are supported.');
+
+    let response;
+    try { response = await fetch(url.toString(), { headers: { Accept: 'text/html' } }); }
+    catch { throw new Error('That site blocked direct importing. Copy its ingredient list and use Paste recipe instead.'); }
+    if (!response.ok) throw new Error(`The recipe site returned an error (${response.status}). Try pasting the ingredients instead.`);
+
+    const html = await response.text();
+    const page = new DOMParser().parseFromString(html, 'text/html');
+    for (const script of page.querySelectorAll('script[type="application/ld+json"]')) {
+      try {
+        const recipe = findRecipeJsonLd(JSON.parse(script.textContent));
+        if (recipe) {
+          return {
+            title: String(recipe.name || page.title || 'Imported recipe').trim(),
+            ingredients: recipe.recipeIngredient.map(cleanIngredientLine).filter(Boolean)
+          };
+        }
+      } catch { /* Ignore malformed structured data and keep looking. */ }
+    }
+    const ingredients = parseRecipeText(page.body ? page.body.innerText : '');
+    if (!ingredients.length) throw new Error('No structured ingredient list was found. Copy the ingredients and use Paste recipe instead.');
+    return { title: page.title || 'Imported recipe', ingredients };
+  }
+
+  function showRecipeReview(ingredients, title = '') {
+    const unique = [...new Map(ingredients.map(value => [normalizeName(value), value])).values()];
+    if (!unique.length) throw new Error('No ingredient lines were found. Include an Ingredients heading or paste only the ingredient list.');
+    recipeItems.innerHTML = '';
+    document.getElementById('recipeReviewTitle').textContent = title || `${unique.length} ingredients found`;
+    const existingNames = new Set(currentItems.map(item => normalizeName(item.name)));
+
+    unique.forEach(value => {
+      const row = document.createElement('div');
+      row.className = 'recipe-item';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = !existingNames.has(normalizeName(value));
+      checkbox.setAttribute('aria-label', `Add ${value}`);
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.value = value;
+      nameInput.className = 'recipe-item-name';
+      const select = document.createElement('select');
+      select.className = 'recipe-item-category';
+      currentCategories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category.key;
+        option.textContent = `${category.icon} ${category.label}`;
+        select.appendChild(option);
+      });
+      select.value = guessCategory(value) || (currentCategories[0] || {}).key || '';
+      row.append(checkbox, nameInput, select);
+      if (existingNames.has(normalizeName(value))) {
+        const note = document.createElement('span');
+        note.className = 'recipe-existing';
+        note.textContent = 'Already on this list — left unchecked';
+        row.appendChild(note);
+      }
+      recipeItems.appendChild(row);
+    });
+    recipeInputStep.style.display = 'none';
+    recipeReviewStep.style.display = '';
+  }
+
+  document.getElementById('importRecipeBtn').addEventListener('click', () => { resetRecipeImporter(); openModal('recipeOverlay'); });
+  document.getElementById('recipeCancelBtn').addEventListener('click', () => closeModal('recipeOverlay'));
+  recipeOverlay.addEventListener('click', event => { if (event.target === recipeOverlay) closeModal('recipeOverlay'); });
+  document.querySelectorAll('.recipe-tab').forEach(button => button.addEventListener('click', () => {
+    activeRecipeTab = button.dataset.recipeTab;
+    setRecipeError(recipeError);
+    document.querySelectorAll('.recipe-tab').forEach(tab => tab.classList.toggle('active', tab === button));
+    document.querySelectorAll('.recipe-panel').forEach(panel => panel.classList.toggle('active', panel.dataset.recipePanel === activeRecipeTab));
+  }));
+  document.getElementById('recipeParseBtn').addEventListener('click', async () => {
+    const button = document.getElementById('recipeParseBtn');
+    setRecipeError(recipeError);
+    button.disabled = true;
+    button.textContent = activeRecipeTab === 'url' ? 'Importing…' : 'Parsing…';
+    try {
+      if (activeRecipeTab === 'url') {
+        importedRecipeUrl = document.getElementById('recipeUrl').value.trim();
+        const result = await importRecipeUrl(importedRecipeUrl);
+        importedRecipeTitle = result.title;
+        showRecipeReview(result.ingredients, result.title);
+      } else {
+        const ingredients = parseRecipeText(document.getElementById('recipeText').value);
+        showRecipeReview(ingredients);
+      }
+    } catch (error) {
+      setRecipeError(recipeError, error.message || 'The recipe could not be imported.');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Review ingredients';
+    }
+  });
+  document.getElementById('recipeBackBtn').addEventListener('click', () => {
+    recipeReviewStep.style.display = 'none';
+    recipeInputStep.style.display = '';
+    setRecipeError(recipeReviewError);
+  });
+  document.getElementById('recipeSelectAllBtn').addEventListener('click', () => {
+    const checks = [...recipeItems.querySelectorAll('input[type="checkbox"]')];
+    const selectAll = checks.some(check => !check.checked);
+    checks.forEach(check => { check.checked = selectAll; });
+    document.getElementById('recipeSelectAllBtn').textContent = selectAll ? 'Select none' : 'Select all';
+  });
+  document.getElementById('recipeAddBtn').addEventListener('click', async () => {
+    setRecipeError(recipeReviewError);
+    if (!itemsCol || listDeleted) { setRecipeError(recipeReviewError, 'This list is not ready. Try again in a moment.'); return; }
+    const selected = [...recipeItems.querySelectorAll('.recipe-item')].map(row => ({
+      selected: row.querySelector('input[type="checkbox"]').checked,
+      name: row.querySelector('.recipe-item-name').value.trim(),
+      category: row.querySelector('.recipe-item-category').value
+    })).filter(item => item.selected && item.name && item.category);
+    if (!selected.length) { setRecipeError(recipeReviewError, 'Select at least one ingredient to add.'); return; }
+    const button = document.getElementById('recipeAddBtn');
+    button.disabled = true;
+    button.textContent = 'Adding…';
+    try {
+      const batch = writeBatch(db);
+      selected.forEach(item => batch.set(doc(itemsCol), {
+        name: item.name,
+        category: item.category,
+        checked: false,
+        assignedTo: null,
+        addedAt: serverTimestamp(),
+        source: { type: 'recipe', title: importedRecipeTitle || null, url: importedRecipeUrl || null }
+      }));
+      await batch.commit();
+      closeModal('recipeOverlay');
+      document.getElementById('recipeText').value = '';
+      document.getElementById('recipeUrl').value = '';
+      showToast(`Added ${selected.length} ingredient${selected.length === 1 ? '' : 's'}`);
+    } catch (error) {
+      console.error('Recipe import save failed:', error);
+      setRecipeError(recipeReviewError, 'Could not add those ingredients. Check the Firestore rules and try again.');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Add selected';
+    }
+  });
 
   document.getElementById('shareBtn').addEventListener('click', async () => {
     const shareUrl = new URL(location.href);
