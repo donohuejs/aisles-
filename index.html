@@ -682,6 +682,7 @@
   let unsubItems = null, unsubMemory = null, unsubListDoc = null;
   let itemsCol, memoryCol, listDocRef;
   let pendingAssignItemId = null;
+  let listDeleted = false;
 
   if (isConfigured) {
     app = initializeApp(firebaseConfig);
@@ -699,6 +700,7 @@
     itemsCol = collection(db, 'lists', listId, 'items');
     memoryCol = collection(db, 'lists', listId, 'categoryMemory');
     listDocRef = doc(db, 'lists', listId);
+    listDeleted = false;
 
     if (isFreshList) {
       setDoc(listDocRef, {
@@ -710,6 +712,11 @@
     }
 
     unsubListDoc = onSnapshot(listDocRef, (snap) => {
+      if (snap.exists() && snap.data().deletedAt) {
+        listDeleted = true;
+        removeDeletedListLocally(listId);
+        return;
+      }
       const data = snap.data() || {};
       currentCategories = (data.categories && data.categories.length) ? data.categories : DEFAULT_CATEGORIES;
       groupModeEnabled = !!data.groupMode;
@@ -745,20 +752,46 @@
     });
   }
 
-  function switchToList(listId) {
+  function switchToList(listId, isFreshList = false) {
     activeListId = listId;
     safeSet('aisle_active_list', listId);
     updateUrl();
     document.getElementById('codeLabel').textContent = `List: ${listId}`;
+    currentItems = [];
+    learnedMap = {};
+    currentCategories = DEFAULT_CATEGORIES;
     itemInput.value = '';
     guessRow.style.display = 'none';
     currentGuess = null; manualPick = null;
+    populateCategorySelect();
+    render(currentItems);
     renderTabs();
-    if (isConfigured) subscribeToList(listId, false);
+    if (isConfigured) subscribeToList(listId, isFreshList);
+  }
+
+  function removeDeletedListLocally(listId) {
+    const wasPinned = pinnedLists.some(l => l.id === listId);
+    pinnedLists = pinnedLists.filter(l => l.id !== listId);
+    savePinnedLists(pinnedLists);
+
+    if (activeListId !== listId) {
+      if (wasPinned) renderTabs();
+      return;
+    }
+
+    if (pinnedLists.length) {
+      switchToList(pinnedLists[0].id);
+    } else {
+      const newId = generateCode();
+      pinnedLists = [{ id: newId, name: 'Groceries' }];
+      savePinnedLists(pinnedLists);
+      switchToList(newId, true);
+    }
+    showToast('That shared list was deleted');
   }
 
   async function saveListDoc(patch, successMsg) {
-    if (!listDocRef) {
+    if (!listDocRef || listDeleted) {
       showToast("Not ready yet — try again in a second");
       return false;
     }
@@ -778,6 +811,10 @@
   if (isConfigured) {
     document.getElementById('addForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (listDeleted) {
+        showToast('That shared list was deleted');
+        return;
+      }
       const name = itemInput.value.trim();
       if (!name) return;
       const category = manualPick || currentGuess;
@@ -908,26 +945,16 @@
         const batch = writeBatch(db);
         currentItems.forEach(i => batch.delete(doc(db, 'lists', deletingId, 'items', i.id)));
         Object.keys(learnedMap).forEach(k => batch.delete(doc(db, 'lists', deletingId, 'categoryMemory', k)));
-        batch.delete(doc(db, 'lists', deletingId));
+        // Keep a tombstone so every device can distinguish a deleted list
+        // from a list whose parent document has not been created yet.
+        batch.set(doc(db, 'lists', deletingId), { deletedAt: serverTimestamp() });
         await batch.commit();
       } catch (err) {
         console.error('Delete list failed:', err);
         showToast("Couldn't fully delete — check Firestore rules");
+        return;
       }
-
-      pinnedLists = pinnedLists.filter(l => l.id !== deletingId);
-      savePinnedLists(pinnedLists);
-
-      if (pinnedLists.length) {
-        switchToList(pinnedLists[0].id);
-      } else {
-        const newId = generateCode();
-        pinnedLists = [{ id: newId, name: 'Groceries' }];
-        savePinnedLists(pinnedLists);
-        switchToList(newId);
-        subscribeToList(newId, true);
-      }
-      showToast('List deleted');
+      removeDeletedListLocally(deletingId);
     });
   }
 
