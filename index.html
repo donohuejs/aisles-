@@ -48,8 +48,7 @@
   }
   body{
     min-height:100vh;
-    background-image: linear-gradient(var(--paper-line) 1px, transparent 1px);
-    background-size: 100% 42px;
+    /* Item borders provide the ruling; a page-wide grid crosses through text. */
   }
   header{
     position:sticky; top:0; z-index:20;
@@ -101,7 +100,7 @@
     background:transparent; color:var(--ink-soft); font-size:16px; cursor:pointer;
   }
 
-  .share-row{ margin-top:10px; display:flex; align-items:center; gap:8px; }
+  .share-row{ margin-top:10px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
   .share-row button{
     font-family:'Space Grotesk', sans-serif; font-size:13px; font-weight:600; color:var(--green-dark);
     background:var(--card); border:1.5px solid var(--paper-line); border-radius:8px;
@@ -112,16 +111,20 @@
 
   main{ padding: 4px 14px 20px; max-width:640px; margin:0 auto; }
 
-  .add-form{ display:flex; gap:8px; margin:16px 0 6px; position:sticky; top:128px; z-index:15; }
+  .add-form{
+    display:flex; gap:8px; margin:8px 0 6px; padding:8px 0;
+    position:sticky; top:var(--header-height, 0px); z-index:15;
+    background:var(--paper);
+  }
   .add-form input[type="text"]{
-    flex:1; font-family:'Space Grotesk', sans-serif; font-size:16px;
+    flex:1; min-width:0; font-family:'Space Grotesk', sans-serif; font-size:16px;
     padding:12px 14px; border-radius:10px; border:1.5px solid var(--paper-line);
     background:var(--card); color:var(--ink); box-shadow:var(--shadow);
   }
   .add-form input[type="text"]:focus{ outline:2px solid var(--green); outline-offset:1px; }
   .add-form button{
     font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:20px;
-    width:46px; border-radius:10px; border:none; background:var(--green-dark);
+    flex:0 0 46px; width:46px; border-radius:10px; border:none; background:var(--green-dark);
     color:#fff; cursor:pointer; box-shadow:var(--shadow);
   }
   .add-form button:active{ background:var(--green); }
@@ -506,6 +509,17 @@
 
 <div class="toast" id="toast"></div>
 
+<script>
+  // Keep the sticky form below the whole header, including wrapped sharing
+  // controls and font/viewport changes. Layout must not wait for Firebase.
+  const stickyHeader = document.querySelector('header');
+  function syncHeaderHeight() {
+    document.documentElement.style.setProperty('--header-height', `${stickyHeader.getBoundingClientRect().height}px`);
+  }
+  syncHeaderHeight();
+  const headerResizeObserver = new ResizeObserver(syncHeaderHeight);
+  headerResizeObserver.observe(stickyHeader);
+</script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
