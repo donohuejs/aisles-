@@ -1,0 +1,10 @@
+{
+  "name": "aisles",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "dev": "node test/serve.js",
+    "check": "node --check src/app.js && node --check src/store.js && node --check sw.js"
+  }
+}
