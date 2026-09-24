@@ -1,8 +1,8 @@
 // Bump this version whenever any app-shell file changes. A waiting update is
 // activated only after the user has finished pending writes.
-const CACHE='aisles-shell-v4';
+const CACHE='aisles-shell-v5';
 const SHELL=[
-  './','./index.html','./styles.css','./icon.svg','./manifest.webmanifest',
+  './','./index.html','./styles.css','./icon.svg','./apple-touch-icon.png','./icon-192.png','./icon-512.png','./manifest.webmanifest',
   './src/app.js','./src/ui.js','./src/domain.js','./src/catalog.js','./src/storage.js',
   './src/writes.js','./src/store.js','./src/config.js','./src/recipes.js','./src/sharing.js','./src/recipe-parser.js',
   'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js',
